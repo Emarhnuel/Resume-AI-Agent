@@ -146,52 +146,16 @@ async def apply_to_job_tool(
         await client.sessions.stop(session.id)
 
 # =================================================================
-# GITHUB SEARCH TOOL
+# GITHUB SEARCH / WEB CRAWLER TOOL
 # =================================================================
 
-import urllib.request
-import urllib.error
+from langchain_tavily import TavilySearch
 
-@tool
-def fetch_github_repos_tool(github_url: str) -> str:
-    """
-    Fetches the public repositories for a given GitHub profile URL.
-    Returns the repository names, descriptions, and primary programming languages.
-    
-    Args:
-        github_url: The URL to the user's GitHub profile (e.g. 'https://github.com/username').
-    """
-    print(f"\n[GitHub Tool] Scanning repositories for {github_url}...")
-    try:
-        # Extract username from url (e.g., https://github.com/torvalds -> torvalds)
-        username = github_url.strip().rstrip('/').split('/')[-1]
-        
-        # Fetch the 15 most recently updated repos
-        api_url = f"https://api.github.com/users/{username}/repos?sort=updated&per_page=15"
-        req = urllib.request.Request(api_url, headers={'User-Agent': 'DeepAgents-CVAgent'})
-        
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode())
-            
-        if not data:
-            return f"No public repositories found for GitHub user: {username}"
-            
-        repos = []
-        for repo in data:
-            name = repo.get("name", "Unknown")
-            desc = repo.get("description", "No description provided")
-            lang = repo.get("language", "Unknown language")
-            repo_url = repo.get("html_url", "")
-            repos.append(f"- **{name}** ({lang}): {desc}\n  URL: {repo_url}")
-            
-        return f"Recent Public Repositories for {username}:\n" + "\n".join(repos)
-        
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return f"GitHub user '{username}' not found. Check the URL."
-        return f"GitHub API error: {e.code} - {e.reason}"
-    except Exception as e:
-        return f"Failed to fetch GitHub repos: {str(e)}"
+# We use Tavily Search to act as a crawler/search engine to look up the provided GitHub repo URLs.
+tavily_search_tool = TavilySearch(
+    max_results=3,
+    topic="general"
+)
 
 # =================================================================
 # CV TO PDF TOOL (ReportLab)
