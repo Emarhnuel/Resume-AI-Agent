@@ -5,3 +5,4 @@ reportlab
 browser-use
 langchain-tavily
 python-dotenv
+langchain-amazon-nova
