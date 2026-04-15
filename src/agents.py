@@ -33,6 +33,7 @@ from src.tools import (
     save_cv_to_pdf_tool,
     tavily_search_tool
 )
+from src.models import CVReviewResult, ATSScanResult
 from src.prompts import (
     JOB_SEARCHER_SYSTEM_PROMPT,
     CV_REVIEWER_SYSTEM_PROMPT,
@@ -111,6 +112,10 @@ job_searcher_agent = {
     "middleware": [
         ToolCallLimitMiddleware(tool_name="search_jobs_tool", run_limit=3, exit_behavior="end"),
     ],
+    # HITL: User reviews search params before Browser Use fires (saves API credits)
+    "interrupt_on": {
+        "search_jobs_tool": {"allowed_decisions": ["approve", "reject"]},
+    },
 }
 
 # 2. CV Reviewer Sub-Agent
@@ -127,6 +132,7 @@ cv_reviewer_agent = {
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="tavily_search", run_limit=3, exit_behavior="end"),
     ],
+    "response_format": CVReviewResult,
 }
 
 # 3. ATS Scanner Sub-Agent
@@ -142,6 +148,7 @@ ats_scanner_agent = {
     "middleware": [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
     ],
+    "response_format": ATSScanResult,
 }
 
 # 4. Application Writer Sub-Agent
@@ -160,6 +167,10 @@ application_writer_agent = {
         ModelCallLimitMiddleware(run_limit=10, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="save_cv_to_pdf_tool", run_limit=5, exit_behavior="end"),
     ],
+    # HITL: User reviews the CV markdown before it becomes a PDF
+    "interrupt_on": {
+        "save_cv_to_pdf_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
+    },
 }
 
 # 5. Job Applier Sub-Agent
