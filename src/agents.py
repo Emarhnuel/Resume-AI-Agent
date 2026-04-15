@@ -12,6 +12,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend, CompositeBackend, StoreBackend
+from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -30,7 +31,7 @@ from src.tools import (
     search_jobs_tool,
     apply_to_job_tool,
     save_cv_to_pdf_tool,
-    fetch_github_repos_tool
+    tavily_search_tool
 )
 from src.prompts import (
     JOB_SEARCHER_SYSTEM_PROMPT,
@@ -107,9 +108,12 @@ job_searcher_agent = {
     "system_prompt": JOB_SEARCHER_SYSTEM_PROMPT,
     "tools": [search_jobs_tool],
     "model": model_secondary,
+    "middleware": [
+        ToolCallLimitMiddleware(tool_name="search_jobs_tool", run_limit=3, exit_behavior="end"),
+    ],
 }
 
-# 2. CV Reviewer Sub-Agent (uses read_file/write_file from Deep Agents, no custom tools)
+# 2. CV Reviewer Sub-Agent
 cv_reviewer_agent = {
     "name": "cv_reviewer",
     "description": (
@@ -117,11 +121,15 @@ cv_reviewer_agent = {
         "Identifies gaps, strengths, and areas to highlight."
     ),
     "system_prompt": CV_REVIEWER_SYSTEM_PROMPT,
-    "tools": [fetch_github_repos_tool],
+    "tools": [tavily_search_tool],
     "model": model_claude,
+    "middleware": [
+        ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
+        ToolCallLimitMiddleware(tool_name="tavily_search", run_limit=3, exit_behavior="end"),
+    ],
 }
 
-# 3. ATS Scanner Sub-Agent (uses read_file/write_file from Deep Agents, no custom tools)
+# 3. ATS Scanner Sub-Agent
 ats_scanner_agent = {
     "name": "ats_scanner",
     "description": (
@@ -131,6 +139,9 @@ ats_scanner_agent = {
     "system_prompt": ATS_SCANNER_SYSTEM_PROMPT,
     "tools": [],
     "model": model_claude,
+    "middleware": [
+        ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
+    ],
 }
 
 # 4. Application Writer Sub-Agent
@@ -145,6 +156,10 @@ application_writer_agent = {
     "tools": [save_cv_to_pdf_tool],
     "skills": ["skills/humanizer/"],
     "model": model_primary,
+    "middleware": [
+        ModelCallLimitMiddleware(run_limit=10, exit_behavior="end"),
+        ToolCallLimitMiddleware(tool_name="save_cv_to_pdf_tool", run_limit=5, exit_behavior="end"),
+    ],
 }
 
 # 5. Job Applier Sub-Agent
@@ -157,6 +172,9 @@ job_applier_agent = {
     "system_prompt": JOB_APPLIER_SYSTEM_PROMPT,
     "tools": [apply_to_job_tool],
     "model": model_secondary,
+    "middleware": [
+        ToolCallLimitMiddleware(tool_name="apply_to_job_tool", run_limit=5, exit_behavior="end"),
+    ],
 }
 
 # Create the supervisor agent
@@ -172,6 +190,9 @@ supervisor = create_deep_agent(
         job_applier_agent
     ],
     tools=[],
+    middleware=[
+        ModelCallLimitMiddleware(run_limit=30, exit_behavior="end"),
+    ],
     checkpointer=checkpointer,
     backend=make_backend,
     store=InMemoryStore(),
