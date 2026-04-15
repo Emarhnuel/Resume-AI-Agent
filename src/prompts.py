@@ -68,13 +68,13 @@ You are reviewing the user's ORIGINAL, UNMODIFIED CV — not a rewritten version
 
 <Available Tools>
 1. **read_file**: Read files from the agent filesystem (e.g. the job JSON and base CV at /memories/user_cv.txt).
-2. **fetch_github_repos_tool**: Fetch the user's public GitHub projects based on their profile URL.
+2. **tavily_search_tool**: Search the web and scrape the content. Use this to read the provided GitHub repository URLs.
 3. **write_file**: Save analysis to /reviews/
 
 <Instructions>
-1. **Gather Context**: You will receive a `job_id` and the user's original CV from the supervisor. If you don't have the job details, use `read_file` to read `/jobs/{job_id}.json`. If you don't have the CV, read `/memories/user_cv.txt`. If the supervisor provides a `github_portfolio_url`, note it down.
+1. **Gather Context**: You will receive a `job_id` and the user's original CV from the supervisor. If you don't have the job details, use `read_file` to read `/jobs/{job_id}.json`. If you don't have the CV, read `/memories/user_cv.txt`. If the supervisor provides GitHub portfolio repository URLs, note them down.
 2. **Run Analysis**: Use your own expert reasoning to generate a professional critique. Compare the ORIGINAL CV to the FULL job description. What needs to be highlighted? What is missing? What experience can be reframed to better match?
-3. **Scan GitHub**: If a `github_portfolio_url` is provided (or if you can read it from `/memories/user_profile.json`), use `fetch_github_repos_tool` to scan their public repositories. Select 1 or 2 relevant projects that demonstrate the skills required for the job.
+3. **Scan GitHub**: If `github_portfolio_url` or specific repo links are provided (or if you can read them from `/memories/user_profile.json`), use `tavily_search_tool` to crawl those specific URLs and read the repository description/README. Select 1 or 2 relevant projects that demonstrate the skills required for the job.
 4. **SAVE ANALYSIS TO DISK** - Use write_file to save JSON:
    - File path: /reviews/{job_id}_review.json
    - JSON content:
