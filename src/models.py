@@ -33,3 +33,27 @@ class JobApplicationForm(BaseModel):
     years_of_experience: Optional[str] = None
     cover_letter_tone: Optional[str] = "Professional"
     additional_requirements: Optional[str] = None
+
+# ==========================================
+# SUBAGENT STRUCTURED OUTPUT SCHEMAS
+# ==========================================
+
+class CVReviewResult(BaseModel):
+    """Structured output from the CV Reviewer subagent."""
+    job_id: str = Field(description="The job ID being reviewed (e.g. 'job_001')")
+    match_reasoning: str = Field(description="Why the candidate is or isn't a strong fit for this role")
+    strengths_to_highlight: List[str] = Field(description="Skills and experiences from the CV that match the job requirements")
+    gaps_to_address: List[str] = Field(description="Missing qualifications or experience gaps relative to the job description")
+    reframing_suggestions: List[str] = Field(description="Specific suggestions to reword existing CV bullet points for better alignment")
+    github_projects_to_include: List[str] = Field(
+        description="GitHub projects worth adding to the CV, with reasons why they are relevant",
+        default_factory=list
+    )
+
+class ATSScanResult(BaseModel):
+    """Structured output from the ATS Scanner subagent."""
+    job_id: str = Field(description="The job ID being scanned (e.g. 'job_001')")
+    score: int = Field(description="ATS match score out of 100", ge=0, le=100)
+    matched_keywords: List[str] = Field(description="Keywords from the job description that already appear in the CV")
+    missing_keywords: List[str] = Field(description="Keywords from the job description that are missing from the CV")
+    incorporation_suggestions: List[str] = Field(description="Specific suggestions for where and how to add each missing keyword naturally")
