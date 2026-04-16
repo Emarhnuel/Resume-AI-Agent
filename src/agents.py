@@ -11,8 +11,9 @@ from langchain_aws import ChatBedrockConverse
 from langchain_openrouter import ChatOpenRouter
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
+import json
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend, CompositeBackend, StoreBackend
+from deepagents.backends import FilesystemBackend, CompositeBackend
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from dotenv import load_dotenv
 
@@ -70,7 +71,7 @@ model_2 = ChatBedrockConverse(
 model_3 = ChatOpenRouter(
     model="qwen/qwen3.6-plus",
     temperature=0.0,
-    max_tokens=10000,
+    max_tokens=100000,
 )
 
 # =============================================================================
@@ -83,13 +84,26 @@ checkpointer = MemorySaver()
 AGENT_DATA_DIR = Path("agent_data")
 AGENT_DATA_DIR.mkdir(exist_ok=True)
 
-_fs_backend = FilesystemBackend(root_dir=str(AGENT_DATA_DIR), virtual_mode=True)
+# Ephemeral backend for work files (jobs, reviews, ats, applications)
+_work_backend = FilesystemBackend(root_dir=str(AGENT_DATA_DIR), virtual_mode=True)
+
+# Persistent backend for memories - survives restarts (writes to disk)
+MEMORIES_DIR = AGENT_DATA_DIR / "memories"
+MEMORIES_DIR.mkdir(exist_ok=True)
+_persistent_backend = FilesystemBackend(root_dir=str(AGENT_DATA_DIR), virtual_mode=False)
+
+# Seed the applied_jobs.json file if it doesn't exist yet
+APPLIED_JOBS_FILE = MEMORIES_DIR / "applied_jobs.json"
+if not APPLIED_JOBS_FILE.exists():
+    APPLIED_JOBS_FILE.write_text(json.dumps([], indent=2))
+    print("[INFO] Seeded empty applied_jobs.json")
 
 def make_backend(runtime):
     return CompositeBackend(
-        default=_fs_backend,
+        default=_work_backend,
         routes={
-            "/memories/": StoreBackend(runtime),
+            # /memories/ persists to disk so data survives across sessions
+            "/memories/": _persistent_backend,
         }
     )
 
@@ -125,7 +139,7 @@ cv_reviewer_agent = {
     ),
     "system_prompt": CV_REVIEWER_SYSTEM_PROMPT,
     "tools": [tavily_search_tool],
-    "model": model_2,
+    "model": model_1,
     "middleware": [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="tavily_search", run_limit=3, exit_behavior="end"),
@@ -160,7 +174,7 @@ application_writer_agent = {
     "system_prompt": APPLICATION_WRITER_SYSTEM_PROMPT,
     "tools": [save_cv_to_pdf_tool],
     "skills": ["skills/humanizer/"],
-    "model": model_1,
+    "model": model_2,
     "middleware": [
         ModelCallLimitMiddleware(run_limit=10, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="save_cv_to_pdf_tool", run_limit=5, exit_behavior="end"),
@@ -180,7 +194,7 @@ job_applier_agent = {
     ),
     "system_prompt": JOB_APPLIER_SYSTEM_PROMPT,
     "tools": [apply_to_job_tool],
-    "model": model_3,
+    "model": model_2,
     "middleware": [
         ToolCallLimitMiddleware(tool_name="apply_to_job_tool", run_limit=5, exit_behavior="end"),
     ],
@@ -189,8 +203,10 @@ job_applier_agent = {
 # Create the supervisor agent
 supervisor = create_deep_agent(
     name="cv_application_orchestrator",
-    model=model_primary,
+    model=model_3,
     system_prompt=SUPERVISOR_SYSTEM_PROMPT,
+    # Memory files loaded into context at startup
+    memory=["/memories/applied_jobs.json"],
     subagents=[
         job_searcher_agent,
         cv_reviewer_agent,
@@ -204,7 +220,6 @@ supervisor = create_deep_agent(
     ],
     checkpointer=checkpointer,
     backend=make_backend,
-    store=InMemoryStore(),
 )
 
 print("[INFO] Supervisor agent created successfully")
