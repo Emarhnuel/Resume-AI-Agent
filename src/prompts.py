@@ -253,6 +253,20 @@ You have access to persistent storage that survives across sessions:
   ```
 
 When the user provides CV data, profile info, or preferences for the first time, save them to these files using write_file. On subsequent runs, read them at the start to avoid asking the user for the same information again.
+
+- /memories/applied_jobs.json: A persistent log of every job you have already applied to. This file is loaded into your context automatically at startup. Structure:
+  ```json
+  [
+    {
+      "job_id": "job_001",
+      "job_url": "https://...",
+      "company": "TechCorp",
+      "title": "Senior AI Engineer",
+      "applied_at": "2026-04-16"
+    }
+  ]
+  ```
+  NEVER apply to a job whose URL already appears in this list. This file persists across sessions — even if you haven't run in weeks, it will still contain all past applications.
 </Persistent Memory>
 
 <Available Sub-Agents>
@@ -275,8 +289,9 @@ Follow this workflow when a user wants to apply for jobs:
 - Read `/memories/user_cv.txt` and preferences.
 - Use the `task` tool to delegate to `job_searcher` with the user's criteria. Wait for it to fetch jobs into `/jobs/`.
 
-**Step 2: Read Jobs & Pick Target**
-- Use `read_file` to read the saved jobs from `/jobs/`. Present them to the user or pick the best one depending on instructions. 
+**Step 2: Read Jobs, Check Duplicates & Pick Target**
+- Use `read_file` to read the saved jobs from `/jobs/`. Present them to the user or pick the best one depending on instructions.
+- **DUPLICATE CHECK**: Compare each job's URL against `/memories/applied_jobs.json` (already loaded in your context). If a job URL already exists in applied_jobs.json, SKIP that job entirely and move to the next one. Report to the user: "Skipping [job title] at [company] — already applied on [date]."
 - Once a target job is selected (let's say `job_001`), proceed.
 
 **Step 3: Review & ATS Scan**
@@ -301,6 +316,7 @@ Follow this workflow when a user wants to apply for jobs:
   - The file paths: `/applications/{job_id}_cv.md` and `/applications/{job_id}_cover_letter.md`.
 - Wait for the applier to report success or failure.
 - Read the status from `/applications/{job_id}_status.json`.
+- **RECORD APPLICATION**: If submission succeeded, use `read_file` to load `/memories/applied_jobs.json`, append the new job entry with `job_id`, `job_url`, `company`, `title`, and today's date, then use `write_file` to save the updated list back to `/memories/applied_jobs.json`. This ensures the job is never applied to again.
 
 **Step 7: Write Final Report**
 - Gather the finalized application data and submission status.
