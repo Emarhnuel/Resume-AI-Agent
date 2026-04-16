@@ -8,6 +8,7 @@ CV reviewing, ATS scanning, and application drafting using the Deep Agents frame
 import os
 from pathlib import Path
 from langchain_aws import ChatBedrockConverse
+from langchain_openrouter import ChatOpenRouter
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
 from deepagents import create_deep_agent
@@ -48,7 +49,7 @@ from src.prompts import (
 # =============================================================================
 
 # Main models based on AWS Bedrock limits/preferences
-model_primary = ChatBedrockConverse( 
+model_1 = ChatBedrockConverse( 
     model_id="us.amazon.nova-pro-v1:0",
     region_name=os.getenv("AWS_REGION", "us-east-1"),
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -57,20 +58,17 @@ model_primary = ChatBedrockConverse(
     max_tokens=40960,
 )
 
-model_secondary = ChatBedrockConverse( 
-    model_id="us.amazon.nova-lite-v1:0",
-    region_name=os.getenv("AWS_REGION", "us-east-1"),
+model_2 = ChatBedrockConverse( 
+    model_id="us.anthropic.claude-opus-4-5-20251101-v1:0",
+    region_name=os.getenv("AWS_REGION", "us-east-1"), 
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
     temperature=0.0,
     max_tokens=10000,
 )
 
-model_claude = ChatBedrockConverse( 
-    model_id="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-    region_name=os.getenv("AWS_REGION", "us-east-1"), 
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+model_3 = ChatOpenRouter(
+    model="qwen/qwen3.6-plus",
     temperature=0.0,
     max_tokens=10000,
 )
@@ -108,7 +106,7 @@ job_searcher_agent = {
     ),
     "system_prompt": JOB_SEARCHER_SYSTEM_PROMPT,
     "tools": [search_jobs_tool],
-    "model": model_secondary,
+    "model": model_3,
     "middleware": [
         ToolCallLimitMiddleware(tool_name="search_jobs_tool", run_limit=3, exit_behavior="end"),
     ],
@@ -127,7 +125,7 @@ cv_reviewer_agent = {
     ),
     "system_prompt": CV_REVIEWER_SYSTEM_PROMPT,
     "tools": [tavily_search_tool],
-    "model": model_claude,
+    "model": model_2,
     "middleware": [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="tavily_search", run_limit=3, exit_behavior="end"),
@@ -144,7 +142,7 @@ ats_scanner_agent = {
     ),
     "system_prompt": ATS_SCANNER_SYSTEM_PROMPT,
     "tools": [],
-    "model": model_claude,
+    "model": model_2,
     "middleware": [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
     ],
@@ -162,7 +160,7 @@ application_writer_agent = {
     "system_prompt": APPLICATION_WRITER_SYSTEM_PROMPT,
     "tools": [save_cv_to_pdf_tool],
     "skills": ["skills/humanizer/"],
-    "model": model_primary,
+    "model": model_1,
     "middleware": [
         ModelCallLimitMiddleware(run_limit=10, exit_behavior="end"),
         ToolCallLimitMiddleware(tool_name="save_cv_to_pdf_tool", run_limit=5, exit_behavior="end"),
@@ -182,7 +180,7 @@ job_applier_agent = {
     ),
     "system_prompt": JOB_APPLIER_SYSTEM_PROMPT,
     "tools": [apply_to_job_tool],
-    "model": model_secondary,
+    "model": model_3,
     "middleware": [
         ToolCallLimitMiddleware(tool_name="apply_to_job_tool", run_limit=5, exit_behavior="end"),
     ],
